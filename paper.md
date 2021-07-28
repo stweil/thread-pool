@@ -63,6 +63,7 @@ This library was created with simplicity and ease-of-use in mind, and is aimed a
     * Fine-tune the sleep duration of each thread's worker function for optimal performance.
     * Monitor the number of queued and/or running tasks.
     * Pause and resume popping new tasks out of the queue.
+    * Catch exceptions thrown by the submitted tasks.
     * Synchronize output to a stream from multiple threads in parallel using the `synced_stream` helper class.
     * Easily measure execution time for benchmarking purposes using the `timer` helper class.
 
