@@ -34,7 +34,7 @@ In addition to `std::thread`, the C++ standard library also offers the higher-le
 
 High-level multithreading APIs, such as OpenMP [@OpenMP2020], allow simple one-line automatic parallelization of C++ code, but they do not give the user precise low-level control over the details of the parallelization. The thread pool class presented here allows the programmer to perform and manage the parallelization at the lowest level, and thus permits more robust optimizations, which can be used to achieve considerably higher performance.
 
-We performed performance tests using our thread pool class on a 12-core / 24-thread high-end desktop computer and a 40-core / 80-thread [Compute Canada](https://www.computecanada.ca/) node, using GCC on Linux. We chose to benchmark matrix operations as they are very commonly used in many different types of scientific software, while also being among the easiest operations to parallelize. On both test systems, for matrix multiplication and generation of random matrices, we found a speedup factor roughly equal to the number of CPU cores plus 30%, which saturates the upper bound of the expected speedup from a hyperthreading CPU [@Casey2011].
+We performed performance tests using our thread pool class on a 12-core / 24-thread high-end desktop computer and a 40-core / 80-thread [Compute Canada](https://www.computecanada.ca/) node, using GCC on Windows and Linux. We chose to benchmark matrix operations as they are very commonly used in many different types of scientific software, while also being among the easiest operations to parallelize. On both test systems, for matrix multiplication and generation of random matrices, we found a speedup factor roughly equal to the number of CPU cores plus 30%, which saturates the upper bound of the expected speedup from a hyperthreading CPU [@Casey2011].
 
 This library was created with simplicity and ease-of-use in mind, and is aimed at computational researchers in all fields of science, from students to experts. Our hope is that anyone with intermediate knowledge of C++ and algorithms will be able to use our thread pool class to incorporate high-performance multithreading into their scientific software smoothly and efficiently.
 
@@ -56,6 +56,7 @@ This library was created with simplicity and ease-of-use in mind, and is aimed a
     * Every task submitted to the queue automatically generates an `std::future`, which can be used to wait for the task to finish executing and/or obtain its eventual return value.
     * Optionally, tasks may also be submitted without generating a future, sacrificing convenience for greater performance.
     * The code is thoroughly documented using Doxygen comments - not only the interface, but also the implementation, in case the user would like to make modifications.
+    * The included test program `thread_pool_test.cpp` can be used to perform comprehensive automated tests and benchmarks, and also serves as an extensive example of how to properly use the package.
 * **Additional features:**
     * Automatically parallelize a loop into any number of parallel tasks.
     * Easily wait for all tasks in the queue to complete.
@@ -66,6 +67,7 @@ This library was created with simplicity and ease-of-use in mind, and is aimed a
     * Catch exceptions thrown by the submitted tasks.
     * Synchronize output to a stream from multiple threads in parallel using the `synced_stream` helper class.
     * Easily measure execution time for benchmarking purposes using the `timer` helper class.
+    * Under continuous and active development. Bug reports and feature requests are welcome, and should be made via [GitHub issues](https://github.com/bshoshany/thread-pool/issues).
 
 # Usage example
 
@@ -74,35 +76,36 @@ In the following simple example, we create a thread pool with 4 threads, and sub
 ```cpp
 #include "thread_pool.hpp"
 
-void sleep_half_second(const size_t &i, synced_stream *sync_out)
+synced_stream sync_out;
+thread_pool pool(4);
+
+void sleep_half_second(const size_t &i)
 {
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    sync_out->println("Task ", i, " done.");
+    sync_out.println("Task ", i, " done.");
 }
 
-void monitor_tasks(const thread_pool *pool, synced_stream *sync_out)
+void monitor_tasks()
 {
-    sync_out->println(pool->get_tasks_total(),
-                      " tasks total, ",
-                      pool->get_tasks_running(),
-                      " tasks running, ",
-                      pool->get_tasks_queued(),
-                      " tasks queued.");
+    sync_out.println(pool.get_tasks_total(),
+                     " tasks total, ",
+                     pool.get_tasks_running(),
+                     " tasks running, ",
+                     pool.get_tasks_queued(),
+                     " tasks queued.");
 }
 
 int main()
 {
-    synced_stream sync_out;
-    thread_pool pool(4);
     for (size_t i = 0; i < 12; i++)
-        pool.push_task(sleep_half_second, i, &sync_out);
-    monitor_tasks(&pool, &sync_out);
+        pool.push_task(sleep_half_second, i);
+    monitor_tasks();
     std::this_thread::sleep_for(std::chrono::milliseconds(750));
-    monitor_tasks(&pool, &sync_out);
+    monitor_tasks();
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    monitor_tasks(&pool, &sync_out);
+    monitor_tasks();
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    monitor_tasks(&pool, &sync_out);
+    monitor_tasks();
 }
 ```
 
