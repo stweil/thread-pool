@@ -151,15 +151,19 @@ public:
             T start = ((T)(t * block_size) + the_first_index);
             T end = (t == num_blocks - 1) ? last_index + 1 : ((T)((t + 1) * block_size) + the_first_index);
             blocks_running++;
-            push_task([start, end, &loop, &blocks_running]
+            push_task([start, end, &loop, &blocks_running, this]
                       {
                           loop(start, end);
                           blocks_running--;
+                          if (blocks_running == 0) {
+                              complete.notify_one();
+                          }
                       });
         }
         while (blocks_running != 0)
         {
-            std::this_thread::yield();
+            std::unique_lock<std::mutex> lock(complete_m);
+            complete.wait(lock);
         }
     }
 
