@@ -16,6 +16,7 @@
 
 #include <atomic>      // std::atomic
 #include <chrono>      // std::chrono
+#include <condition_variable> // std::condition_variable
 #include <cstdint>     // std::int_fast64_t, std::uint_fast32_t
 #include <functional>  // std::function
 #include <future>      // std::future, std::promise
@@ -59,8 +60,8 @@ public:
      */
     ~thread_pool()
     {
+        cv.notify_all();
         wait_for_tasks();
-        running = false;
         destroy_threads();
     }
 
@@ -158,7 +159,7 @@ public:
         }
         while (blocks_running != 0)
         {
-            sleep_or_yield();
+            std::this_thread::yield();
         }
     }
 
@@ -175,6 +176,7 @@ public:
         {
             const std::scoped_lock lock(queue_mutex);
             tasks.push(std::function<void()>(task));
+            cv.notify_one();
         }
     }
 
@@ -204,7 +206,6 @@ public:
         bool was_paused = paused;
         paused = true;
         wait_for_tasks();
-        running = false;
         destroy_threads();
         thread_count = _thread_count ? _thread_count : std::thread::hardware_concurrency();
         threads.reset(new std::thread[thread_count]);
@@ -288,6 +289,7 @@ public:
      */
     void wait_for_tasks()
     {
+        cv.notify_all();
         while (true)
         {
             if (!paused)
@@ -300,7 +302,8 @@ public:
                 if (get_tasks_running() == 0)
                     break;
             }
-            sleep_or_yield();
+            std::unique_lock<std::mutex> lock(complete_m);
+            complete.wait(lock);
         }
     }
 
@@ -317,6 +320,10 @@ public:
      * @brief The duration, in microseconds, that the worker function should sleep for when it cannot find any tasks in the queue. If set to 0, then instead of sleeping, the worker function will execute std::this_thread::yield() if there are no tasks in the queue. The default value is 1000.
      */
     ui32 sleep_duration = 1000;
+    std::condition_variable cv;
+    std::mutex cv_m;
+    std::condition_variable complete;
+    std::mutex complete_m;
 
 private:
     // ========================
@@ -339,8 +346,11 @@ private:
      */
     void destroy_threads()
     {
+        running = false;
+        wait_for_tasks();
         for (ui32 i = 0; i < thread_count; i++)
         {
+            cv.notify_all();
             threads[i].join();
         }
     }
@@ -388,10 +398,12 @@ private:
             {
                 task();
                 tasks_total--;
+                complete.notify_all();
             }
             else
             {
-                sleep_or_yield();
+                std::unique_lock<std::mutex> lock(cv_m);
+                cv.wait(lock);
             }
         }
     }

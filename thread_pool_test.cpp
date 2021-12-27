@@ -413,6 +413,7 @@ void check_pausing()
     check(pool.get_tasks_total() == n * 3 && pool.get_tasks_running() == 0 && pool.get_tasks_queued() == n * 3);
     dual_println("Unpausing pool.");
     pool.paused = false;
+    pool.cv.notify_all();
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
     dual_println("300ms later, should have: ", n * 2, " tasks total, ", n, " tasks running, ", n, " tasks queued...");
     check(pool.get_tasks_total() == n * 2 && pool.get_tasks_running() == n && pool.get_tasks_queued() == n);
